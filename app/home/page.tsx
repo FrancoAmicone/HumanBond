@@ -16,7 +16,6 @@ import { useUserDashboard } from "@/lib/worldcoin/useUserDashboard";
 import { useProposals } from "@/lib/hooks/useProposals";
 import { useMarriageDetails } from "@/lib/hooks/useMarriageDetails";
 import {
-  ShieldCheck,
   Heart,
   Send,
   Copy,
@@ -151,9 +150,6 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
-  // Resolve own username for the verification badge and header
-  const { profile: ownProfile } = useWorldProfile(isConnected ? address ?? null : null);
-
   // Resolve outgoing partner username — only fires when there's a pending proposal
   const { profile: pendingPartnerProfile, isLoading: isPendingPartnerLoading } = useWorldProfile(
     outgoingProposal?.proposed ?? null
@@ -222,32 +218,29 @@ export default function HomePage() {
       <main className={`flex-1 flex flex-col items-center justify-start px-6 pb-12`}>
         {!isMarried ? (
           <div className="flex flex-col items-center text-center space-y-12 max-w-lg w-full">
-            {/* Onchain Verification Badge */}
-            {isConnected && address && (
-              <div className="flex items-center gap-2.5 px-5 py-2.5 bg-white shadow-sm border border-emerald-100 rounded-full text-emerald-700 animate-in fade-in slide-in-from-top-4 duration-700">
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping opacity-20" />
-                  <ShieldCheck size={16} className="text-emerald-500 relative z-10" />
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-widest leading-none">Verified Human Identity</span>
-                <div className="h-3 w-px bg-emerald-100 mx-1" />
-                <span className="text-[10px] font-mono font-bold opacity-60" title={address}>
-                  {displayName(address, ownProfile.username)}
-                </span>
-              </div>
-            )}
-
             {/* TIME balance from previous bond */}
             {isConnected && dashboard && Number(dashboard.timeBalance) > 0 && (
-              <div className="flex items-center gap-2.5 px-5 py-2.5 bg-white shadow-sm border border-amber-100 rounded-full animate-in fade-in slide-in-from-top-4 duration-700">
-                <Coins size={14} className="text-amber-500 shrink-0" />
-                <span className="text-[10px] font-black uppercase tracking-widest leading-none text-amber-700">
-                  Time Collected
-                </span>
-                <div className="h-3 w-px bg-amber-100 mx-1" />
-                <span className="text-[10px] font-mono font-bold text-amber-600">
-                  {(Number(dashboard.timeBalance) / 1e18).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TIME
-                </span>
+              <div className="w-full bg-[#1A1A1A] rounded-[2.5rem] p-8 space-y-6 shadow-2xl relative overflow-hidden animate-in zoom-in duration-500">
+                <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 blur-[50px]" />
+
+                <div className="flex items-center gap-3 relative z-10">
+                  <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-2xl flex items-center justify-center text-white">
+                    <Coins size={24} />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-lg font-black text-white tracking-tight">Time Collected</h3>
+                    <p className="text-[10px] font-bold text-amber-500/60 uppercase tracking-widest">From past bonds</p>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-4 relative z-10">
+                  <div className="flex-1 text-left min-w-0 w-0">
+                    <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Balance</p>
+                    <p className="text-[11px] font-mono font-bold text-amber-100 truncate overflow-hidden">
+                      {(Number(dashboard.timeBalance) / 1e18).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TIME
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -144,7 +144,7 @@ export default function HomePage() {
     isLoading: isProposalsLoading,
     refetch: refetchProposals
   } = useProposals();
-  const { marriageView, isLoading: isMarriageLoading } = useMarriageDetails(
+  const { marriageView, dissolutionRequest, isLoading: isMarriageLoading } = useMarriageDetails(
     dashboard?.partner as `0x${string}` | null
   );
   const [isLoading, setIsLoading] = useState(true);
@@ -172,7 +172,7 @@ export default function HomePage() {
   };
 
   // Get marriage status from contract
-  const isMarried = isConnected && (dashboard?.isMarried ?? false);
+  const isBonded = isConnected && (dashboard?.isBonded ?? false);
   const hasIncomingProposals = isConnected && incomingProposals.length > 0;
 
   /**
@@ -195,7 +195,7 @@ export default function HomePage() {
 
   // Show loading state while checking verification or fetching dashboard
   // Include isMarriageLoading only if the user is potentially married to unify animations
-  const isDataLoading = isConnected && (isDashboardLoading || isProposalsLoading || (dashboard?.isMarried && isMarriageLoading));
+  const isDataLoading = isConnected && (isDashboardLoading || isProposalsLoading || (dashboard?.isBonded && isMarriageLoading));
 
   if (isLoading || isDataLoading) {
     return (
@@ -216,7 +216,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-[#E8E8E8] flex flex-col">
       {/* Main content - centered by default, top-aligned when married for 20px gap */}
       <main className={`flex-1 flex flex-col items-center justify-start px-6 pb-12`}>
-        {!isMarried ? (
+        {!isBonded ? (
           <div className="flex flex-col items-center text-center space-y-8 max-w-lg w-full pt-2">
             {/* Incoming Proposals Notifications */}
             {hasIncomingProposals && (
@@ -389,6 +389,7 @@ export default function HomePage() {
                 dashboard={dashboard}
                 onRefresh={refetch}
                 marriageView={marriageView}
+                dissolutionRequest={dissolutionRequest}
                 isMarriageLoading={isMarriageLoading}
               />
             )}

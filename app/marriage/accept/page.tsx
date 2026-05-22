@@ -3,7 +3,7 @@ import { AcceptProposalForm } from "../../components/marriage/AcceptProposalForm
 
 export const metadata: Metadata = {
   title: "Accept Proposal | HumanBond",
-  description: "Accept a marriage proposal and create an eternal bond on Worldchain.",
+  description: "Accept a bond proposal and create an eternal bond on Worldchain.",
 };
 
 export default function AcceptProposalPage() {

@@ -179,9 +179,9 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#E8E8E8] flex flex-col">
       {/* Main content - centered by default, top-aligned when married for 20px gap */}
-      <main className={`flex-1 flex flex-col items-center justify-start px-6 pb-12`}>
+      <main className={`flex-1 flex flex-col items-center justify-center px-6 py-8`}>
         {!isBonded ? (
-          <div className="flex flex-col items-center text-center space-y-8 max-w-lg w-full pt-2">
+          <div className="flex flex-col items-center text-center space-y-8 max-w-lg w-full">
             {/* Incoming Proposals — compact notification card */}
             {hasIncomingProposals && (
               <Link

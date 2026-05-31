@@ -352,7 +352,7 @@ export default function HomePage() {
                   </div>
                 )}
 
-                {/* Notification opt-in — only when not yet granted, disappears once enabled */}
+                {/* Notification opt-in — disappears once enabled */}
                 {notifStatus === 'not_granted' && (
                   <button
                     onClick={requestPermission}

@@ -178,22 +178,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#E8E8E8] flex flex-col">
-      {/* Bell icon — top-right, only inside World App */}
-      {isConnected && notifStatus !== 'not_world_app' && notifStatus !== 'loading' && (
-        <div className="absolute top-5 right-5 z-50">
-          <button
-            onClick={notifStatus === 'not_granted' ? requestPermission : undefined}
-            className="relative w-9 h-9 flex items-center justify-center rounded-full bg-white/70 backdrop-blur-sm border border-gray-200/60 shadow-sm transition-all active:scale-90"
-            title={notifStatus === 'granted' ? 'Notifications enabled' : 'Enable notifications'}
-          >
-            <Bell size={15} className={notifStatus === 'granted' ? 'text-gray-700' : 'text-gray-400'} />
-            {notifStatus === 'not_granted' && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-1 ring-white" />
-            )}
-          </button>
-        </div>
-      )}
-
       {/* Main content - centered by default, top-aligned when married for 20px gap */}
       <main className={`flex-1 flex flex-col items-center justify-start px-6 pb-12`}>
         {!isBonded ? (
@@ -366,6 +350,17 @@ export default function HomePage() {
                       {(Number(dashboard.timeBalance) / 1e18).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
+                )}
+
+                {/* Notification opt-in — only when not yet granted, disappears once enabled */}
+                {notifStatus === 'not_granted' && (
+                  <button
+                    onClick={requestPermission}
+                    className="self-center flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <Bell size={12} />
+                    <span>Enable notifications</span>
+                  </button>
                 )}
               </div>
             ) : (

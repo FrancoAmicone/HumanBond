@@ -62,24 +62,18 @@ export default function GalleryPage() {
 
     return (
         <main className="min-h-screen bg-[#E8E8E8] pb-24">
-            {/* Page Header */}
-            <div className="bg-[#E8E8E8]/80 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/50">
-                <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
-                    <button
-                        onClick={() => router.push('/home')}
-                        className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-100 text-gray-600 hover:text-black hover:scale-105 active:scale-95 transition-all"
-                    >
-                        <ChevronLeft size={20} />
-                    </button>
-                    <div className="text-center">
-                        <h1 className="font-black text-xl text-gray-900 tracking-tight">Gallery</h1>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Our Eternal Memories</p>
-                    </div>
-                    <div className="w-10"></div>
-                </div>
+            {/* Slim back row */}
+            <div className="px-5 pt-3 pb-1 flex items-center gap-3">
+                <button
+                    onClick={() => router.push('/home')}
+                    className="w-9 h-9 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-100 text-gray-600 hover:text-black active:scale-95 transition-all"
+                >
+                    <ChevronLeft size={18} />
+                </button>
+                <span className="font-black text-base text-gray-900 tracking-tight">Gallery</span>
             </div>
 
-            <div className="max-w-2xl mx-auto px-6 py-5 space-y-8">
+            <div className="max-w-2xl mx-auto px-6 pt-3 pb-5 space-y-8">
 
                 {/* Loading State */}
                 {isLoading ? (

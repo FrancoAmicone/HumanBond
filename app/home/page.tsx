@@ -95,6 +95,13 @@ export default function HomePage() {
     outgoingProposal?.proposed ?? null
   );
 
+  // Clear optimistic cancel flag once on-chain confirms no pending proposal
+  useEffect(() => {
+    if (!hasPendingProposal && localProposalCancelled) {
+      setLocalProposalCancelled(false);
+    }
+  }, [hasPendingProposal, localProposalCancelled]);
+
   // Detect World App on client to conditionally show chat buttons
   const [isWorldApp, setIsWorldApp] = useState(false);
   useEffect(() => { setIsWorldApp(isInWorldApp()) }, []);
@@ -117,8 +124,7 @@ export default function HomePage() {
 
       setCancelProposalState("success");
       setLocalProposalCancelled(true);
-      refetch();
-      refetchProposals();
+      setTimeout(() => { refetch(); refetchProposals(); }, 2000);
     } catch (err) {
       setCancelProposalState("error");
       setCancelProposalError(err instanceof Error ? err.message : "Failed to cancel proposal");
@@ -378,7 +384,7 @@ export default function HomePage() {
             )}
           </div>
         ) : (
-          <div className="w-full max-w-lg mx-auto">
+          <div className="w-full max-w-lg mx-auto space-y-4">
             {dashboard && isConnected && (
               <MarriageDashboard
                 dashboard={dashboard}
@@ -387,6 +393,15 @@ export default function HomePage() {
                 dissolutionRequest={dissolutionRequest}
                 isMarriageLoading={isMarriageLoading}
               />
+            )}
+            {notifStatus === 'not_granted' && (
+              <button
+                onClick={requestPermission}
+                className="w-full flex items-center justify-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-gray-600 transition-colors py-2"
+              >
+                <Bell size={12} />
+                <span>Enable notifications</span>
+              </button>
             )}
           </div>
         )}

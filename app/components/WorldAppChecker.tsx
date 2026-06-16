@@ -6,7 +6,6 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
 import { useHydrated } from '@/lib/hooks/useHydrated'
 
 import {
@@ -52,12 +51,9 @@ export interface WorldAppCheckerProps {
 
 export function WorldAppChecker({ isOpen, onOpenChange }: WorldAppCheckerProps) {
   const isMounted = useHydrated()
-  const [platform, setPlatform] = useState<'ios' | 'android' | 'desktop'>('desktop')
-
-  useEffect(() => {
-    if (!isMounted) return
-    setPlatform(detectPlatform())
-  }, [isMounted])
+  // Computed during render (not in an effect): detectPlatform only reads
+  // navigator, and we only use it after mount, so this stays SSR-safe.
+  const platform = isMounted ? detectPlatform() : 'desktop'
 
   /**
    * Redirect to the appropriate app store based on platform

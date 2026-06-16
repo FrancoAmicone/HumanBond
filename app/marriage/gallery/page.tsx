@@ -62,7 +62,7 @@ export default function GalleryPage() {
 
             setMintingState("success");
             setShowSuccessModal(true);
-        } catch (err) {
+        } catch {
             // Any error means no milestones available - show friendly modal
             setMintingState("idle");
             setShowNotAvailableModal(true);
@@ -115,10 +115,10 @@ export default function GalleryPage() {
                                     {vowNFTs.map((nft, index) => {
                                         // Extract marriage details from attributes
                                         const attrs = nft.metadata?.attributes || [];
-                                        const partnerA = attrs.find((a: any) => a.trait_type === 'partnerA')?.value;
-                                        const partnerB = attrs.find((a: any) => a.trait_type === 'partnerB')?.value;
-                                        const bondDate = attrs.find((a: any) => a.trait_type === 'bondDate' || a.trait_type === 'marriageDate')?.value;
-                                        const bondId = attrs.find((a: any) => a.trait_type === 'bondId' || a.trait_type === 'marriageId')?.value;
+                                        const partnerA = attrs.find((a) => a.trait_type === 'partnerA')?.value?.toString();
+                                        const partnerB = attrs.find((a) => a.trait_type === 'partnerB')?.value?.toString();
+                                        const bondDate = attrs.find((a) => a.trait_type === 'bondDate' || a.trait_type === 'marriageDate')?.value?.toString();
+                                        const bondId = attrs.find((a) => a.trait_type === 'bondId' || a.trait_type === 'marriageId')?.value?.toString();
 
                                         // Format date if available
                                         let formattedDate = '';

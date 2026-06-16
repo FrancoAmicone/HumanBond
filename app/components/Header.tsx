@@ -18,9 +18,6 @@ import { useHydrated } from "@/lib/hooks/useHydrated";
 import { useWorldProfile, displayName } from "@/lib/worldcoin/useWorldProfile";
 import { Info, X } from "lucide-react";
 
-const formatAddress = (addr: string) =>
-  `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-
 export function Header() {
   const { address, isConnected, isConnecting, connect, disconnect, error } = useWalletAuth();
   const { profile } = useWorldProfile(isConnected ? address : null);

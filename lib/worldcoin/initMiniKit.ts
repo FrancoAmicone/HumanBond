@@ -53,7 +53,7 @@ export const isInWorldApp = (): boolean => {
     }
 
     // 2. Check if MiniKit is injected into window
-    const windowWithMiniKit = window as any
+    const windowWithMiniKit = window as unknown as { MiniKit?: unknown }
     if (windowWithMiniKit.MiniKit) {
       return true
     }

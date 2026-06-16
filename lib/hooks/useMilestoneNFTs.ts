@@ -4,13 +4,13 @@ import { CONTRACT_ADDRESSES, MILESTONE_NFT_ABI } from '@/lib/contracts';
 import { readContract, getPublicClient } from '@wagmi/core';
 import { wagmiConfig } from '@/lib/wagmi/config';
 import { parseAbiItem } from 'viem';
-import { parseTokenMetadata } from '@/lib/utils/parseTokenMetadata';
+import { parseTokenMetadata, type TokenMetadata } from '@/lib/utils/parseTokenMetadata';
 
 export type MilestoneNFTData = {
     tokenId: bigint;
     year: bigint;
     tokenURI: string;
-    metadata: any;
+    metadata: TokenMetadata;
 };
 
 async function fetchSingleMilestone(tokenId: bigint): Promise<MilestoneNFTData> {
@@ -31,7 +31,7 @@ async function fetchSingleMilestone(tokenId: bigint): Promise<MilestoneNFTData> 
         }) as Promise<string>,
     ]);
 
-    let metadata = {};
+    let metadata: TokenMetadata = {};
     try {
         metadata = await parseTokenMetadata(tokenURI);
     } catch (e) {

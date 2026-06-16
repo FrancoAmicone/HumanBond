@@ -3,23 +3,22 @@
 import { CreateProposalForm } from "../../components/marriage/CreateProposalForm";
 import { useProposals } from "@/lib/hooks/useProposals";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { ChevronLeft } from "lucide-react";
 
 export default function CreateProposalPage() {
   const { hasPendingProposal, isLoading } = useProposals();
   const router = useRouter();
-  const [showContent, setShowContent] = useState(false);
 
+  // Redirect away if the user already has a pending proposal
   useEffect(() => {
-    if (!isLoading) {
-      if (hasPendingProposal) {
-        router.replace("/home");
-        return;
-      }
-      setShowContent(true);
+    if (!isLoading && hasPendingProposal) {
+      router.replace("/home");
     }
   }, [hasPendingProposal, isLoading, router]);
+
+  // Derived during render — no state needed
+  const showContent = !isLoading && !hasPendingProposal;
 
   if (isLoading || !showContent) {
     return (

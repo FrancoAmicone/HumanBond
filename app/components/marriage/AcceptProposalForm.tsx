@@ -141,7 +141,7 @@ export function AcceptProposalForm() {
       });
 
       if (verifyPayload.status === "error") {
-        const errPayload = verifyPayload as any;
+        const errPayload = verifyPayload as { error_code?: string };
         throw new Error(`Verification error: ${errPayload.error_code || "cancelled"}`);
       }
 
@@ -167,7 +167,7 @@ export function AcceptProposalForm() {
       });
 
       if (txPayload.status === "error") {
-        const errPayload = txPayload as any;
+        const errPayload = txPayload as { error_code?: string; message?: string };
         const errorMsg = errPayload.error_code || errPayload.message || "Unknown error";
         throw new Error(`Transaction failed: ${errorMsg}`);
       }

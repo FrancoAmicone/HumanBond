@@ -314,23 +314,42 @@ export function MarriageDashboard({
                     <div className="flex-1 min-w-0">
                         {isRequester ? (
                             canExecute ? (
-                                <p className="text-xs font-bold text-red-700">Dissolution ready — you can execute it now.</p>
+                                <>
+                                    <p className="text-xs font-bold text-red-700">Your dissolution is ready to finalize.</p>
+                                    <p className="text-[10px] text-red-600/80 mt-0.5 leading-relaxed">
+                                        The 3-day wait is over. Tap Execute to end the bond, or Cancel to keep it.
+                                    </p>
+                                </>
                             ) : (
                                 <>
-                                    <p className="text-xs font-bold text-amber-800">You requested dissolution.</p>
-                                    <p className="text-[10px] text-amber-700 mt-0.5 flex items-center gap-1">
+                                    <p className="text-xs font-bold text-amber-800">You started a dissolution.</p>
+                                    <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
+                                        You&apos;re still bonded during the 3-day wait. You can cancel anytime before finalizing.
+                                    </p>
+                                    <p className="text-[10px] font-bold text-amber-800 mt-1 flex items-center gap-1">
                                         <Timer size={10} />
-                                        {daysRemaining}d {hoursRemaining}h {minutesRemaining}m remaining
+                                        {daysRemaining}d {hoursRemaining}h {minutesRemaining}m until you can finalize
                                     </p>
                                 </>
                             )
                         ) : (
                             <>
-                                <p className="text-xs font-bold text-orange-800">Your partner requested dissolution.</p>
-                                <p className="text-[10px] text-orange-700 mt-0.5 flex items-center gap-1">
-                                    <Timer size={10} />
-                                    {canExecute ? "Delay period met." : `${daysRemaining}d ${hoursRemaining}h ${minutesRemaining}m remaining`}
-                                </p>
+                                <p className="text-xs font-bold text-orange-800">Your partner wants to end the bond.</p>
+                                {canExecute ? (
+                                    <p className="text-[10px] text-orange-700 mt-0.5 leading-relaxed">
+                                        You&apos;re still bonded — but they can finalize it at any moment now. Only they can complete or cancel the dissolution, so reach out if you want to keep the bond.
+                                    </p>
+                                ) : (
+                                    <>
+                                        <p className="text-[10px] text-orange-700 mt-0.5 leading-relaxed">
+                                            You&apos;re still bonded. They can finalize it once the wait ends — only they can complete or cancel it.
+                                        </p>
+                                        <p className="text-[10px] font-bold text-orange-800 mt-1 flex items-center gap-1">
+                                            <Timer size={10} />
+                                            {daysRemaining}d {hoursRemaining}h {minutesRemaining}m until they can finalize
+                                        </p>
+                                    </>
+                                )}
                             </>
                         )}
                     </div>
@@ -630,7 +649,7 @@ export function MarriageDashboard({
                                 <>
                                     <h3 className="text-2xl font-black text-gray-900 tracking-tight">Execute Dissolution?</h3>
                                     <p className="text-sm text-gray-500 font-medium leading-relaxed">
-                                        The 3-day waiting period has passed. This will dissolve the bond and distribute all pending TIME tokens.
+                                        The 3-day waiting period has passed. Confirming dissolves the bond and distributes all pending TIME tokens. If you&apos;ve changed your mind, you can still cancel the request and keep the bond.
                                     </p>
                                 </>
                             ) : isDissolutionPending && isRequester && !canExecute ? (
@@ -678,9 +697,16 @@ export function MarriageDashboard({
                                         {dissolutionTxState === "sending" ? "Processing..." : "Confirm Dissolution"}
                                     </button>
                                     <button
+                                        onClick={handleCancelDissolution}
+                                        disabled={dissolutionTxState === "sending"}
+                                        className="w-full py-4 px-6 rounded-2xl text-sm font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-all disabled:opacity-50"
+                                    >
+                                        Cancel request — keep the bond
+                                    </button>
+                                    <button
                                         onClick={() => setShowConfirm(false)}
                                         disabled={dissolutionTxState === "sending"}
-                                        className="w-full py-4 px-6 rounded-2xl text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all"
+                                        className="w-full py-3 px-6 rounded-2xl text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all"
                                     >
                                         Not yet
                                     </button>

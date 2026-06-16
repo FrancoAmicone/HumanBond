@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useVowNFT } from "@/lib/hooks/useVowNFT";
 import { useMilestoneNFTs } from "@/lib/hooks/useMilestoneNFTs";
+import { useUserDashboard } from "@/lib/worldcoin/useUserDashboard";
 import { NFTCard } from "@/app/components/marriage/NFTCard";
 import { MiniKit } from "@worldcoin/minikit-js";
 import { CONTRACT_ADDRESSES, HUMAN_BOND_ABI } from "@/lib/contracts";
@@ -22,12 +23,22 @@ export default function GalleryPage() {
     const queryClient = useQueryClient();
     const { vowNFTs, isLoading: loadingVow, error: vowError } = useVowNFT();
     const { milestones, isLoading: loadingMilestones, error: milestonesError } = useMilestoneNFTs();
+    const { dashboard } = useUserDashboard();
 
     const [mintingState, setMintingState] = useState<"idle" | "sending" | "success" | "error">("idle");
     const [showNotAvailableModal, setShowNotAvailableModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     const handleMintMilestones = async () => {
+        // manualCheckAndMint requires the partner address — without an active
+        // bond there is nothing to mint, so surface the friendly modal instead
+        // of sending a tx that would revert.
+        const partner = dashboard?.partner;
+        if (!dashboard?.isBonded || !partner || partner === "0x0000000000000000000000000000000000000000") {
+            setShowNotAvailableModal(true);
+            return;
+        }
+
         try {
             setMintingState("sending");
 
@@ -37,7 +48,7 @@ export default function GalleryPage() {
                         address: CONTRACT_ADDRESSES.HUMAN_BOND,
                         abi: HUMAN_BOND_ABI,
                         functionName: "manualCheckAndMint",
-                        args: [],
+                        args: [partner],
                     },
                 ],
             });

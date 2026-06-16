@@ -19,7 +19,6 @@ import { isInWorldApp } from "@/lib/worldcoin/initMiniKit";
 import { Sparkles, ScanFace, MessageCircle } from "lucide-react";
 import { decodeProof } from "@/lib/utils/decodeProof";
 import { useWorldProfile, resolveToAddress, triggerDirectChat } from "@/lib/worldcoin/useWorldProfile";
-import { APP_URL } from "@/lib/contracts";
 import { sendNotification } from "@/lib/hooks/useNotify";
 import dynamic from "next/dynamic";
 
@@ -45,10 +44,8 @@ export function CreateProposalForm() {
 
   const { walletAddress, setWalletAddress } = useAuthStore();
 
-  // Only resolve partner's username after the proposal succeeds
-  const { profile: partnerProfile } = useWorldProfile(
-    state === 'success' ? resolvedAddress : null
-  );
+  // Warm the partner's World profile cache once the proposal succeeds
+  useWorldProfile(state === 'success' ? resolvedAddress : null);
 
   // Live username/address resolution — debounced 600ms after user stops typing
   useEffect(() => {
@@ -152,7 +149,7 @@ export function CreateProposalForm() {
       });
 
       if (verifyPayload.status === "error") {
-        const errPayload = verifyPayload as any;
+        const errPayload = verifyPayload as { error_code?: string };
         throw new Error(`Verification error: ${errPayload.error_code || "cancelled"}`);
       }
 
@@ -178,7 +175,7 @@ export function CreateProposalForm() {
       });
 
       if (txPayload.status === "error") {
-        const errPayload = txPayload as any;
+        const errPayload = txPayload as { error_code?: string; message?: string };
         const errorMsg = errPayload.error_code || errPayload.message || "Unknown error";
         throw new Error(`Transaction failed: ${errorMsg}`);
       }
@@ -187,7 +184,7 @@ export function CreateProposalForm() {
       setTxHash(txPayload.transaction_id || null);
       sendNotification(resolvedAddress, 'proposal_received');
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Proposal error:", err);
       setState("error");
       const errorMsg = err instanceof Error ? err.message : JSON.stringify(err);

@@ -30,7 +30,9 @@ export function triggerDirectChat(usernameOrAddress: string) {
  * No-ops silently if the API is unavailable (e.g. outside World App).
  */
 export function triggerProfileCard(walletAddress: string) {
-  const mk = MiniKit as any
+  const mk = MiniKit as unknown as {
+    showProfileCard?: (args: { walletAddress: string }) => void
+  }
   if (typeof mk.showProfileCard === 'function') {
     mk.showProfileCard({ walletAddress })
   }
@@ -60,7 +62,9 @@ export async function resolveToAddress(
   if (!username) throw new Error('Enter a username or wallet address')
 
   // 1. Probe MiniKit SDK (available in newer versions)
-  const mk = MiniKit as any
+  const mk = MiniKit as unknown as {
+    getUserByUsername?: (username: string) => Promise<{ walletAddress?: string; username?: string } | null>
+  }
   if (typeof mk.getUserByUsername === 'function') {
     try {
       const result = await mk.getUserByUsername(username)

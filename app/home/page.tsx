@@ -38,7 +38,7 @@ import {
 import dynamic from "next/dynamic";
 import { useWorldProfile, displayName, triggerDirectChat } from "@/lib/worldcoin/useWorldProfile";
 import { isInWorldApp } from "@/lib/worldcoin/initMiniKit";
-import { APP_URL, CONTRACT_ADDRESSES, HUMAN_BOND_ABI } from "@/lib/contracts";
+import { CONTRACT_ADDRESSES, HUMAN_BOND_ABI } from "@/lib/contracts";
 import { MiniKit } from "@worldcoin/minikit-js";
 
 const MarriageDashboard = dynamic(
@@ -50,9 +50,9 @@ const MarriageDashboard = dynamic(
 
 export default function HomePage() {
   const router = useRouter();
-  const { isVerified, checkVerificationExpiry, verificationData } = useAuthStore();
+  const { isVerified, checkVerificationExpiry } = useAuthStore();
   const { isConnected, address } = useWalletAuth();
-  const { dashboard, isLoading: isDashboardLoading, error: dashboardError, refetch } = useUserDashboard();
+  const { dashboard, isLoading: isDashboardLoading, refetch } = useUserDashboard();
   const {
     incomingProposals,
     outgoingProposal,

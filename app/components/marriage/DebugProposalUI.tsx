@@ -15,7 +15,6 @@ export function DebugProposalUI({
   partnerAddress,
   merkleRoot,
   nullifierHash,
-  proof,
   decodedProof,
   status,
   error,

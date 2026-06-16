@@ -4,12 +4,12 @@ import { CONTRACT_ADDRESSES, BOND_NFT_ABI } from '@/lib/contracts';
 import { readContract, getPublicClient } from '@wagmi/core';
 import { wagmiConfig } from '@/lib/wagmi/config';
 import { parseAbiItem } from 'viem';
-import { parseTokenMetadata } from '@/lib/utils/parseTokenMetadata';
+import { parseTokenMetadata, type TokenMetadata } from '@/lib/utils/parseTokenMetadata';
 
 export type VowNFTData = {
     tokenId: bigint;
     tokenURI: string;
-    metadata: any;
+    metadata: TokenMetadata;
 };
 
 async function fetchSingleBondNFT(tokenId: bigint): Promise<VowNFTData | null> {
@@ -21,7 +21,7 @@ async function fetchSingleBondNFT(tokenId: bigint): Promise<VowNFTData | null> {
             args: [tokenId],
         }) as string;
 
-        let metadata = {};
+        let metadata: TokenMetadata = {};
         try {
             metadata = await parseTokenMetadata(tokenURI);
         } catch {

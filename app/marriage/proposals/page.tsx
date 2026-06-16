@@ -78,7 +78,7 @@ function ProposalDetailCard({
             });
 
             if (verifyPayload.status === "error") {
-                const errPayload = verifyPayload as any;
+                const errPayload = verifyPayload as { error_code?: string };
                 throw new Error(`Verification error: ${errPayload.error_code || "cancelled"}`);
             }
 
@@ -97,7 +97,7 @@ function ProposalDetailCard({
             });
 
             if (txPayload.status === "error") {
-                const errPayload = txPayload as any;
+                const errPayload = txPayload as { error_code?: string; message?: string };
                 throw new Error(errPayload.error_code || errPayload.message || "Transaction failed");
             }
 
@@ -282,7 +282,9 @@ export default function ProposalsPage() {
         p => !handledProposers.has(p.proposer.toLowerCase())
     );
 
-    // Clean up handled set once on-chain data confirms the proposals are gone
+    // Clean up handled set once on-chain data confirms the proposals are gone.
+    // Functional setState keyed off incomingProposals is intentional here; the
+    // update is a no-op when nothing changed, so it can't loop.
     useEffect(() => {
         if (handledProposers.size === 0) return;
         const currentProposers = new Set(incomingProposals.map(p => p.proposer.toLowerCase()));
@@ -290,6 +292,7 @@ export default function ProposalsPage() {
             const stillNeeded = new Set([...prev].filter(p => currentProposers.has(p)));
             return stillNeeded.size < prev.size ? stillNeeded : prev;
         });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [incomingProposals]);
 
     const handleProposalHandled = (proposer: string) => {

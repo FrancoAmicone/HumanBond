@@ -11,6 +11,9 @@ export function useNotificationPermission() {
 
     useEffect(() => {
         if (!isInWorldApp()) {
+            // Synchronous setState is intentional here: SSR renders 'loading',
+            // and a lazy initializer would cause a hydration mismatch.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setStatus('not_world_app');
             return;
         }
@@ -18,7 +21,7 @@ export function useNotificationPermission() {
             .then(({ finalPayload }) => {
                 const granted =
                     finalPayload?.status === 'success' &&
-                    (finalPayload as any).permissions?.notifications === true;
+                    (finalPayload as { permissions?: { notifications?: boolean } }).permissions?.notifications === true;
                 setStatus(granted ? 'granted' : 'not_granted');
             })
             .catch(() => setStatus('not_granted'));

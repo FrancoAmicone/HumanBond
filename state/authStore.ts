@@ -117,14 +117,15 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'humanbond-auth',
       version: 1,
-      migrate: (persisted: any, version: number) => {
+      migrate: (persisted: unknown, version: number) => {
+        const state = persisted as Partial<AuthState>
         if (version === 0) {
           return {
-            ...persisted,
-            manuallyDisconnected: persisted.manuallyDisconnected ?? false,
-          }
+            ...state,
+            manuallyDisconnected: state.manuallyDisconnected ?? false,
+          } as AuthState
         }
-        return persisted as AuthState
+        return state as AuthState
       },
     }
   )

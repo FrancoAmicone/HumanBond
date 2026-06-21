@@ -5,6 +5,8 @@ import { readContract, getPublicClient } from '@wagmi/core';
 import { wagmiConfig } from '@/lib/wagmi/config';
 import { parseAbiItem } from 'viem';
 import { parseTokenMetadata, type TokenMetadata } from '@/lib/utils/parseTokenMetadata';
+import { USE_MOCKS } from '@/lib/config';
+import { getMockMilestones } from '@/lib/mocks';
 
 export type MilestoneNFTData = {
     tokenId: bigint;
@@ -70,8 +72,8 @@ export function useMilestoneNFTs() {
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['milestoneNFTs', address],
-        queryFn: () => fetchAllMilestones(address as `0x${string}`),
-        enabled: isConnected && !!address,
+        queryFn: () => (USE_MOCKS ? getMockMilestones() : fetchAllMilestones(address as `0x${string}`)),
+        enabled: USE_MOCKS || (isConnected && !!address),
         staleTime: 60_000,
     });
 

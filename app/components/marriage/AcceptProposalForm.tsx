@@ -19,6 +19,8 @@ import { isInWorldApp } from "@/lib/worldcoin/initMiniKit";
 import { resolveToAddress } from "@/lib/worldcoin/useWorldProfile";
 import { Heart, ScanFace, Users } from "lucide-react";
 import { decodeProof } from "@/lib/utils/decodeProof";
+import { USE_MOCKS } from "@/lib/config";
+import { simulateTx } from "@/lib/mocks/mockTx";
 import dynamic from "next/dynamic";
 
 const PrenupModal = dynamic(() => import("./PrenupModal").then(m => m.PrenupModal), { ssr: false });
@@ -84,7 +86,7 @@ export function AcceptProposalForm() {
   useEffect(() => {
     const checkWorldApp = () => {
       const inWorld = isInWorldApp();
-      setIsWorldApp(inWorld);
+      setIsWorldApp(USE_MOCKS || inWorld);
 
       // Auto-update wallet address from MiniKit if available
       if (inWorld && MiniKit.user?.walletAddress && !walletAddress) {
@@ -128,6 +130,16 @@ export function AcceptProposalForm() {
 
     try {
       setState("verifying");
+
+      if (USE_MOCKS) {
+        await simulateTx();
+        setState("sending");
+        await simulateTx("married");
+        setState("success");
+        setTxHash("0xmocktransactionhash");
+        return;
+      }
+
       const userWallet = MiniKit.user?.walletAddress || walletAddress;
 
       if (!userWallet) {

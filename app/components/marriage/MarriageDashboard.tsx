@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { MiniKit } from "@worldcoin/minikit-js";
 import { CONTRACT_ADDRESSES, HUMAN_BOND_ABI } from "@/lib/contracts";
-import { useAuthStore } from "@/state/authStore";
+import { useMarriage } from "@/lib/marriage/context";
+import { USE_MOCKS } from "@/lib/config";
+import { simulateTx } from "@/lib/mocks/mockTx";
 import { sendNotification } from "@/lib/hooks/useNotify";
 import { UserDashboard } from "@/lib/worldcoin/useUserDashboard";
 import { useMarriageDetails, BondView, DissolutionRequest } from "@/lib/hooks/useMarriageDetails";
@@ -31,6 +33,8 @@ type DissolutionTxState = "idle" | "sending" | "success" | "error";
 interface MarriageDashboardProps {
     dashboard: UserDashboard;
     onRefresh?: () => void;
+    onDissolved?: (partnerName?: string) => void;
+    onDissolutionFailed?: () => void;
     marriageView?: BondView | null;
     dissolutionRequest?: DissolutionRequest | null;
     isMarriageLoading?: boolean;
@@ -39,12 +43,16 @@ interface MarriageDashboardProps {
 export function MarriageDashboard({
     dashboard,
     onRefresh,
+    onDissolved,
+    onDissolutionFailed,
     marriageView: propsMarriageView,
     dissolutionRequest: propsDissolutionRequest,
     isMarriageLoading: propsIsMarriageLoading
 }: MarriageDashboardProps) {
     const router = useRouter();
-    const { walletAddress } = useAuthStore();
+    // Self address — same value as the persisted wallet in real mode, and the
+    // mock self-address in mock mode (so isRequester works in the playground).
+    const { address: walletAddress } = useMarriage();
 
     const { profile: partnerProfile, isLoading: isPartnerLoading } = useWorldProfile(dashboard.partner)
     const partnerDisplayName = displayName(dashboard.partner, partnerProfile.username)
@@ -127,8 +135,8 @@ export function MarriageDashboard({
         return () => clearInterval(interval);
     }, [marriageView]);
 
-    // Dissolution helpers
-    const dissolutionDelaySeconds = 3 * 24 * 60 * 60; // 3 days default
+    // Dissolution helpers — 3 days on-chain, 10s in mock so the full flow is testable
+    const dissolutionDelaySeconds = USE_MOCKS ? 10 : 3 * 24 * 60 * 60;
     const isDissolutionPending = !localDissolutionCancelled &&
         ((dissolutionRequest?.active ?? false) || localDissolutionRequested);
     const isRequester = isDissolutionPending && (
@@ -152,6 +160,7 @@ export function MarriageDashboard({
     const daysRemaining = Math.floor(secondsRemaining / 86400);
     const hoursRemaining = Math.floor((secondsRemaining % 86400) / 3600);
     const minutesRemaining = Math.floor((secondsRemaining % 3600) / 60);
+    const secsRemaining = Math.floor(secondsRemaining % 60);
 
     const handleClaim = async () => {
         if (!dashboard.partner || !walletAddress) {
@@ -167,6 +176,13 @@ export function MarriageDashboard({
         try {
             setClaimState("sending");
             setClaimError(null);
+
+            if (USE_MOCKS) {
+                await simulateTx();
+                setClaimState("success");
+                setTimeout(() => onRefresh?.(), 2000);
+                return;
+            }
 
             const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
                 transaction: [{
@@ -196,6 +212,14 @@ export function MarriageDashboard({
             setDissolutionTxState("sending");
             setError(null);
 
+            if (USE_MOCKS) {
+                await simulateTx("dissolutionPending");
+                setDissolutionTxState("success");
+                setLastDissolutionAction('request');
+                setLocalDissolutionRequested(true);
+                return;
+            }
+
             const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
                 transaction: [{
                     address: CONTRACT_ADDRESSES.HUMAN_BOND,
@@ -224,6 +248,16 @@ export function MarriageDashboard({
             setDissolutionTxState("sending");
             setError(null);
 
+            if (USE_MOCKS) {
+                await simulateTx("married");
+                setDissolutionTxState("idle");
+                setLastDissolutionAction('cancel');
+                setLocalDissolutionRequested(false);
+                setLocalDissolutionCancelled(true);
+                setShowConfirm(false);
+                return;
+            }
+
             const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
                 transaction: [{
                     address: CONTRACT_ADDRESSES.HUMAN_BOND,
@@ -250,9 +284,18 @@ export function MarriageDashboard({
 
     const handleExecuteDissolution = async () => {
         if (!dashboard.partner || !walletAddress) return;
+        // Show overlay immediately (waiting phase) — tx runs behind it
+        setShowConfirm(false);
+        onDissolved?.(partnerDisplayName);
         try {
             setDissolutionTxState("sending");
             setError(null);
+
+            if (USE_MOCKS) {
+                await simulateTx("single");
+                sendNotification(dashboard.partner, "dissolution_executed");
+                return;
+            }
 
             const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
                 transaction: [{
@@ -265,10 +308,11 @@ export function MarriageDashboard({
 
             if (finalPayload.status === "error") throw new Error("Transaction failed");
 
-            setDissolutionTxState("success");
-            setLastDissolutionAction('execute');
-            sendNotification(dashboard.partner, 'dissolution_executed');
+            sendNotification(dashboard.partner, "dissolution_executed");
         } catch (err) {
+            // Hide overlay and surface error back in modal
+            onDissolutionFailed?.();
+            setShowConfirm(true);
             setDissolutionTxState("error");
             setError(err instanceof Error ? err.message : "Failed to execute dissolution");
         }
@@ -328,7 +372,7 @@ export function MarriageDashboard({
                                     </p>
                                     <p className="text-[10px] font-bold text-amber-800 mt-1 flex items-center gap-1">
                                         <Timer size={10} />
-                                        {daysRemaining}d {hoursRemaining}h {minutesRemaining}m until you can finalize
+                                        {daysRemaining}d {hoursRemaining}h {minutesRemaining}m {secsRemaining}s until you can finalize
                                     </p>
                                 </>
                             )
@@ -346,7 +390,7 @@ export function MarriageDashboard({
                                         </p>
                                         <p className="text-[10px] font-bold text-orange-800 mt-1 flex items-center gap-1">
                                             <Timer size={10} />
-                                            {daysRemaining}d {hoursRemaining}h {minutesRemaining}m until they can finalize
+                                            {daysRemaining}d {hoursRemaining}h {minutesRemaining}m {secsRemaining}s until they can finalize
                                         </p>
                                     </>
                                 )}
@@ -656,7 +700,7 @@ export function MarriageDashboard({
                                 <>
                                     <h3 className="text-2xl font-black text-gray-900 tracking-tight">Cancel Request?</h3>
                                     <p className="text-sm text-gray-500 font-medium leading-relaxed">
-                                        Your dissolution request is pending. You have {daysRemaining}d {hoursRemaining}h {minutesRemaining}m left to cancel.
+                                        Your dissolution request is pending. You have {daysRemaining}d {hoursRemaining}h {minutesRemaining}m {secsRemaining}s left to cancel.
                                     </p>
                                 </>
                             ) : (

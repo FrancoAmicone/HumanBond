@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useVowNFT } from "@/lib/hooks/useVowNFT";
 import { useMilestoneNFTs } from "@/lib/hooks/useMilestoneNFTs";
-import { useUserDashboard } from "@/lib/worldcoin/useUserDashboard";
+import { useMarriage } from "@/lib/marriage/context";
 import { NFTCard } from "@/app/components/marriage/NFTCard";
 import { MiniKit } from "@worldcoin/minikit-js";
 import { CONTRACT_ADDRESSES, HUMAN_BOND_ABI } from "@/lib/contracts";
+import { USE_MOCKS } from "@/lib/config";
+import { simulateTx } from "@/lib/mocks/mockTx";
 import {
     ChevronLeft,
     Sparkles,
@@ -23,7 +25,7 @@ export default function GalleryPage() {
     const queryClient = useQueryClient();
     const { vowNFTs, isLoading: loadingVow, error: vowError } = useVowNFT();
     const { milestones, isLoading: loadingMilestones, error: milestonesError } = useMilestoneNFTs();
-    const { dashboard } = useUserDashboard();
+    const { dashboard } = useMarriage();
 
     const [mintingState, setMintingState] = useState<"idle" | "sending" | "success" | "error">("idle");
     const [showNotAvailableModal, setShowNotAvailableModal] = useState(false);
@@ -41,6 +43,13 @@ export default function GalleryPage() {
 
         try {
             setMintingState("sending");
+
+            if (USE_MOCKS) {
+                await simulateTx();
+                setMintingState("success");
+                setShowSuccessModal(true);
+                return;
+            }
 
             const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
                 transaction: [

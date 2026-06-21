@@ -16,6 +16,7 @@ import { isInWorldApp } from "@/lib/worldcoin/initMiniKit";
 import Image from "next/image";
 import { ScanFace, Globe, Info, X } from "lucide-react";
 import { useHydrated } from "@/lib/hooks/useHydrated";
+import { USE_MOCKS } from "@/lib/config";
 import dynamic from "next/dynamic";
 
 const WorldAppChecker = dynamic(
@@ -38,6 +39,12 @@ export default function Home() {
    */
   const handleGetStarted = async () => {
     setShowError(null);
+
+    // Mock mode: skip World ID verification and enter the playground directly.
+    if (USE_MOCKS) {
+      router.push("/home");
+      return;
+    }
 
     // Check if running in World App
     if (!isInWorldApp()) {

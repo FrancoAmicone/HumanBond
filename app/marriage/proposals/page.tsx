@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import { CONTRACT_ADDRESSES, HUMAN_BOND_ABI, WORLD_APP_CONFIG } from "@/lib/contracts";
-import { useAuthStore } from "@/state/authStore";
-import { useProposals } from "@/lib/hooks/useProposals";
+import { useMarriage } from "@/lib/marriage/context";
+import { USE_MOCKS } from "@/lib/config";
+import { simulateTx } from "@/lib/mocks/mockTx";
 import { useWorldProfile, displayName, triggerDirectChat, triggerProfileCard } from "@/lib/worldcoin/useWorldProfile";
 import { isInWorldApp } from "@/lib/worldcoin/initMiniKit";
 import { decodeProof } from "@/lib/utils/decodeProof";
@@ -18,24 +19,26 @@ import {
     Check,
     MessageCircle,
     Users,
-    Sparkles,
     XCircle,
 } from "lucide-react";
 import type { ProposalInfo } from "@/lib/hooks/useProposals";
 import { sendNotification } from "@/lib/hooks/useNotify";
+import { setBondCelebrationFlag } from "@/lib/bondCelebration";
+import { BondCelebrationOverlay } from "@/app/components/marriage/BondCelebrationOverlay";
 
 const PrenupModal = dynamic(() => import("@/app/components/marriage/PrenupModal").then(m => m.PrenupModal), { ssr: false });
 
-type CardState = "idle" | "verifying" | "sending_accept" | "sending_reject" | "confirm_reject" | "success_accept" | "success_reject" | "error";
+type CardState = "idle" | "verifying" | "sending_accept" | "sending_reject" | "confirm_reject" | "success_reject" | "error";
+type HandleResult = "accept" | "reject";
 
 function ProposalDetailCard({
     proposal,
-    onSuccess,
+    onHandled,
 }: {
     proposal: ProposalInfo;
-    onSuccess: () => void;
+    onHandled: (action: HandleResult) => void;
 }) {
-    const { walletAddress } = useAuthStore();
+    const { address: walletAddress } = useMarriage();
     const { profile, isLoading: isProfileLoading } = useWorldProfile(proposal.proposer);
     const name = displayName(proposal.proposer, profile.username);
 
@@ -44,6 +47,8 @@ function ProposalDetailCard({
     const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [isWorldApp, setIsWorldApp] = useState(false);
+    // Celebration overlay — appears immediately on prenup confirm
+    const [celebratingName, setCelebratingName] = useState<string | null>(null);
 
     useEffect(() => { setIsWorldApp(isInWorldApp()); }, []);
 
@@ -64,9 +69,19 @@ function ProposalDetailCard({
 
     const handlePrenupConfirm = async () => {
         setShowPrenup(false);
+        // Show overlay immediately (waiting phase) — tx runs behind it
+        setCelebratingName(name);
         try {
             setCardState("verifying");
             setError(null);
+
+            if (USE_MOCKS) {
+                await simulateTx();
+                setCardState("sending_accept");
+                await simulateTx("married");
+                onHandled("accept");
+                return;
+            }
 
             const userWallet = MiniKit.user?.walletAddress || walletAddress;
             if (!userWallet) throw new Error("Wallet not available");
@@ -101,10 +116,11 @@ function ProposalDetailCard({
                 throw new Error(errPayload.error_code || errPayload.message || "Transaction failed");
             }
 
-            setCardState("success_accept");
-            onSuccess();
+            onHandled("accept");
             sendNotification(proposal.proposer, 'proposal_accepted');
         } catch (err) {
+            // Hide overlay and surface error in the card
+            setCelebratingName(null);
             setCardState("error");
             setError(err instanceof Error ? err.message : "Something went wrong");
         }
@@ -114,6 +130,13 @@ function ProposalDetailCard({
         try {
             setCardState("sending_reject");
             setError(null);
+
+            if (USE_MOCKS) {
+                await simulateTx("single");
+                setCardState("success_reject");
+                onHandled("reject");
+                return;
+            }
 
             const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
                 transaction: [{
@@ -127,23 +150,13 @@ function ProposalDetailCard({
             if (finalPayload.status === "error") throw new Error("Transaction failed");
 
             setCardState("success_reject");
-            onSuccess();
+            onHandled("reject");
             sendNotification(proposal.proposer, 'proposal_rejected');
         } catch (err) {
             setCardState("error");
             setError(err instanceof Error ? err.message : "Failed to reject proposal");
         }
     };
-
-    if (cardState === "success_accept") {
-        return (
-            <div className="bg-emerald-50 border border-emerald-100 rounded-[2rem] p-6 text-center space-y-2 animate-in fade-in duration-500">
-                <Sparkles size={28} className="text-emerald-500 mx-auto" />
-                <p className="text-sm font-black text-emerald-900">Bond Accepted!</p>
-                <p className="text-xs text-emerald-600 font-medium">Your bond is now active on Worldchain.</p>
-            </div>
-        );
-    }
 
     if (cardState === "success_reject") {
         return (
@@ -269,13 +282,27 @@ function ProposalDetailCard({
                 onConfirm={handlePrenupConfirm}
                 title="Binding Agreement"
             />
+
+            {/* Celebration overlay — appears immediately, tx runs behind it */}
+            {celebratingName !== null && (
+                <BondCelebrationOverlay
+                    isReady={false}
+                    partnerName={celebratingName}
+                    onComplete={() => {}}
+                />
+            )}
         </>
     );
 }
 
 export default function ProposalsPage() {
     const router = useRouter();
-    const { incomingProposals, isLoading, refetch } = useProposals();
+    const {
+        incomingProposals,
+        isProposalsLoading: isLoading,
+        refetchProposals: refetch,
+        refetchDashboard,
+    } = useMarriage();
     const [handledProposers, setHandledProposers] = useState<Set<string>>(new Set());
 
     const visibleProposals = incomingProposals.filter(
@@ -295,8 +322,17 @@ export default function ProposalsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [incomingProposals]);
 
-    const handleProposalHandled = (proposer: string) => {
+    const handleProposalHandled = (proposer: string, action: HandleResult) => {
         setHandledProposers(prev => new Set([...prev, proposer.toLowerCase()]));
+
+        if (action === "accept") {
+            setBondCelebrationFlag();
+            void refetchDashboard();
+            void refetch();
+            router.replace("/home");
+            return;
+        }
+
         setTimeout(() => refetch(), 2000);
     };
 
@@ -341,7 +377,7 @@ export default function ProposalsPage() {
                         <ProposalDetailCard
                             key={`${proposal.proposer}-${index}`}
                             proposal={proposal}
-                            onSuccess={() => handleProposalHandled(proposal.proposer)}
+                            onHandled={(action) => handleProposalHandled(proposal.proposer, action)}
                         />
                     ))
                 )}

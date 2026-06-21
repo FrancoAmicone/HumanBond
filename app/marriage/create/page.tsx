@@ -1,13 +1,13 @@
 'use client'
 
 import { CreateProposalForm } from "../../components/marriage/CreateProposalForm";
-import { useProposals } from "@/lib/hooks/useProposals";
+import { useMarriage } from "@/lib/marriage/context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { ChevronLeft } from "lucide-react";
 
 export default function CreateProposalPage() {
-  const { hasPendingProposal, isLoading } = useProposals();
+  const { hasPendingProposal, isProposalsLoading: isLoading } = useMarriage();
   const router = useRouter();
 
   // Redirect away if the user already has a pending proposal

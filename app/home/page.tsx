@@ -10,17 +10,13 @@
 import Link from "next/link";
 import { useAuthStore } from "@/state/authStore";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { useWalletAuth } from "@/lib/worldcoin/useWalletAuth";
-import { useUserDashboard } from "@/lib/worldcoin/useUserDashboard";
-import { useProposals } from "@/lib/hooks/useProposals";
-import { useMarriageDetails } from "@/lib/hooks/useMarriageDetails";
-import { useActiveBondCount } from "@/lib/hooks/useActiveBondCount";
-import { useCooldownStatus } from "@/lib/hooks/useCooldownStatus";
+import { useEffect, useState, useCallback } from "react";
+import { useMarriage } from "@/lib/marriage/context";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
+import { peekBondCelebrationFlag, consumeBondCelebrationFlag } from "@/lib/bondCelebration";
 import {
   Heart,
-  Send,
+  Handshake,
   Copy,
   Check,
   Sparkles,
@@ -35,40 +31,72 @@ import {
   MessageCircle,
   Bell,
 } from "lucide-react";
+import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useWorldProfile, displayName, triggerDirectChat } from "@/lib/worldcoin/useWorldProfile";
 import { isInWorldApp } from "@/lib/worldcoin/initMiniKit";
 import { CONTRACT_ADDRESSES, HUMAN_BOND_ABI } from "@/lib/contracts";
 import { MiniKit } from "@worldcoin/minikit-js";
+import { USE_MOCKS } from "@/lib/config";
+import { simulateTx } from "@/lib/mocks/mockTx";
 
 const MarriageDashboard = dynamic(
   () => import("../components/marriage/MarriageDashboard").then(m => m.MarriageDashboard),
   { ssr: false }
 );
 
+import { BondCelebrationOverlay } from "../components/marriage/BondCelebrationOverlay";
+import { BondDissolutionOverlay } from "../components/marriage/BondDissolutionOverlay";
+
 // ---------------------------------------------------------------------------
 
 export default function HomePage() {
   const router = useRouter();
   const { isVerified, checkVerificationExpiry } = useAuthStore();
-  const { isConnected, address } = useWalletAuth();
-  const { dashboard, isLoading: isDashboardLoading, refetch } = useUserDashboard();
   const {
+    isConnected,
+    dashboard,
+    isDashboardLoading,
+    refetchDashboard: refetch,
     incomingProposals,
     outgoingProposal,
     hasPendingProposal,
-    isLoading: isProposalsLoading,
-    refetch: refetchProposals
-  } = useProposals();
-  const { marriageView, dissolutionRequest, isLoading: isMarriageLoading } = useMarriageDetails(
-    dashboard?.partner as `0x${string}` | null
-  );
-  const { count: activeBondCount } = useActiveBondCount();
-  const { cooldown } = useCooldownStatus(address as `0x${string}` | null, dashboard?.isBonded);
+    isProposalsLoading,
+    refetchProposals,
+    marriageView,
+    dissolutionRequest,
+    isMarriageLoading,
+    activeBondCount,
+    cooldown,
+  } = useMarriage();
   const { status: notifStatus, requestPermission } = useNotificationPermission();
 
   const [isLoading, setIsLoading] = useState(true);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const [showCelebration, setShowCelebration] = useState(
+    () => typeof window !== "undefined" && peekBondCelebrationFlag()
+  );
+  const [dissolutionOverlay, setDissolutionOverlay] = useState<{ partnerName?: string } | null>(null);
+  const showDissolution = dissolutionOverlay !== null;
+
+  const handleCelebrationComplete = useCallback(() => {
+    consumeBondCelebrationFlag();
+    setShowCelebration(false);
+  }, []);
+
+  const handleDissolutionComplete = useCallback(() => {
+    setDissolutionOverlay(null);
+  }, []);
+
+  const handleDissolved = useCallback((partnerName?: string) => {
+    setDissolutionOverlay({ partnerName });
+    void refetch();
+    void refetchProposals();
+  }, [refetch, refetchProposals]);
+
+  const handleDissolutionFailed = useCallback(() => {
+    setDissolutionOverlay(null);
+  }, []);
 
   // Live countdown for cooldown
   const [nowTs, setNowTs] = useState(Math.floor(Date.now() / 1000));
@@ -111,6 +139,13 @@ export default function HomePage() {
       setCancelProposalState("sending");
       setCancelProposalError(null);
 
+      if (USE_MOCKS) {
+        await simulateTx("single");
+        setCancelProposalState("success");
+        setLocalProposalCancelled(true);
+        return;
+      }
+
       const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
         transaction: [{
           address: CONTRACT_ADDRESSES.HUMAN_BOND,
@@ -148,6 +183,39 @@ export default function HomePage() {
   const hasIncomingProposals = isConnected && incomingProposals.length > 0;
   const effectiveHasPendingProposal = hasPendingProposal && !localProposalCancelled;
 
+  const { profile: celebrationPartnerProfile } = useWorldProfile(
+    showCelebration && dashboard?.partner ? dashboard.partner : null
+  );
+  const celebrationPartnerName = dashboard?.partner
+    ? displayName(dashboard.partner, celebrationPartnerProfile.username)
+    : undefined;
+
+  // Poll dashboard while waiting for on-chain bond confirmation after accept
+  useEffect(() => {
+    if (!showCelebration || isBonded) return;
+    void refetch();
+    const pollId = setInterval(() => { void refetch(); }, 1500);
+    const timeoutId = setTimeout(handleCelebrationComplete, 20000);
+    return () => {
+      clearInterval(pollId);
+      clearTimeout(timeoutId);
+    };
+  }, [showCelebration, isBonded, refetch, handleCelebrationComplete]);
+
+  // Poll dashboard while waiting for on-chain dissolution confirmation
+  useEffect(() => {
+    if (!showDissolution || !isBonded) return;
+    const pollId = setInterval(() => {
+      void refetch();
+      void refetchProposals();
+    }, 1500);
+    const timeoutId = setTimeout(handleDissolutionComplete, 20000);
+    return () => {
+      clearInterval(pollId);
+      clearTimeout(timeoutId);
+    };
+  }, [showDissolution, isBonded, refetch, refetchProposals, handleDissolutionComplete]);
+
   /**
    * Check if user is verified before showing content
    * Redirect to landing page if not verified
@@ -156,7 +224,7 @@ export default function HomePage() {
     // Check verification status
     const isValid = checkVerificationExpiry();
 
-    if (!isVerified || !isValid) {
+    if (!USE_MOCKS && (!isVerified || !isValid)) {
       // Not verified or verification expired - redirect to landing
       router.replace("/");
       return;
@@ -170,7 +238,7 @@ export default function HomePage() {
   // Include isMarriageLoading only if the user is potentially married to unify animations
   const isDataLoading = isConnected && (isDashboardLoading || isProposalsLoading || (dashboard?.isBonded && isMarriageLoading));
 
-  if (isLoading || isDataLoading) {
+  if ((isLoading || isDataLoading) && !showCelebration && !showDissolution) {
     return (
       <div className="min-h-screen bg-[#E8E8E8] flex flex-col items-center justify-center p-6">
         <div className="relative">
@@ -185,28 +253,53 @@ export default function HomePage() {
     );
   }
 
+  // Overlay active — render nothing but the background + overlay.
+  // This prevents any flash of home content while the animation plays.
+  if (showCelebration || showDissolution) {
+    return (
+      <div className="min-h-screen bg-[#E8E8E8]">
+        {showCelebration && (
+          <BondCelebrationOverlay
+            isReady={isBonded}
+            partnerName={celebrationPartnerName}
+            onComplete={handleCelebrationComplete}
+          />
+        )}
+        {showDissolution && (
+          <BondDissolutionOverlay
+            isReady={!isBonded}
+            partnerName={dissolutionOverlay.partnerName}
+            onComplete={handleDissolutionComplete}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#E8E8E8] flex flex-col">
       {/* Main content - centered by default, top-aligned when married for 20px gap */}
-      <main className={`flex-1 flex flex-col items-center justify-center px-6 py-8`}>
+      <main className={`flex-1 flex flex-col items-center px-6 pb-8 ${
+        !isBonded && hasIncomingProposals ? "justify-start pt-4" : "justify-center py-8"
+      }`}>
         {!isBonded ? (
-          <div className="flex flex-col items-center text-center space-y-4 max-w-lg w-full">
+          <div className={`flex flex-col items-center text-center space-y-4 max-w-lg w-full ${showDissolution ? "" : "animate-in fade-in zoom-in duration-700"}`}>
             {/* Incoming Proposals — compact notification card */}
             {hasIncomingProposals && (
               <Link
                 href="/marriage/proposals"
-                className="w-full bg-white rounded-[2.5rem] p-6 flex items-center gap-4 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-rose-50 animate-in zoom-in duration-500 hover:border-rose-100 transition-all group"
+                className="w-full bg-white rounded-[2.5rem] px-7 py-5 flex items-center gap-5 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-black-50 animate-in zoom-in duration-500 hover:border-black-100 transition-all group"
               >
-                <div className="w-12 h-12 bg-rose-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-rose-200 shrink-0">
-                  <Heart size={22} className="fill-white" />
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-black-100 shrink-0 overflow-hidden p-1.5 border border-black-100">
+                  <Image src="/Isotype.png" alt="HumanBond" width={36} height={36} className="w-full h-full object-contain" />
                 </div>
-                <div className="flex-1 text-left">
+                <div className="flex-1 text-left space-y-1.5">
                   <h3 className="text-base font-black text-gray-900 tracking-tight">
                     {incomingProposals.length} Proposal{incomingProposals.length > 1 ? 's' : ''} Received
                   </h3>
-                  <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest">Tap to review</p>
+                  <p className="text-[10px] font-bold text-black-400 uppercase tracking-widest">Tap to review</p>
                 </div>
-                <ArrowRight size={18} className="text-rose-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
+                <ArrowRight size={18} className="text-black-300 group-hover:text-black-500 group-hover:translate-x-1 transition-all" />
               </Link>
             )}
 
@@ -218,7 +311,7 @@ export default function HomePage() {
 
                 <div className="flex items-center gap-3 relative z-10">
                   <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-2xl flex items-center justify-center text-white">
-                    <Send size={24} className="fill-white" />
+                    <Handshake size={22} />
                   </div>
                   <div className="text-left">
                     <h3 className="text-lg font-black text-white tracking-tight">Proposal Sent</h3>
@@ -293,7 +386,7 @@ export default function HomePage() {
                 {effectiveHasPendingProposal ? (
                   <span className="text-gray-9As00">Shared Destiny.</span>
                 ) : hasIncomingProposals ? (
-                  <span className="text-rose-500">Your Turn.</span>
+                  <span className="text-black-500">Your Turn.</span>
                 ) : (
                   <>
                     <span>Human</span>
@@ -334,9 +427,9 @@ export default function HomePage() {
                   className="w-full bg-white text-black px-8 py-5 rounded-2xl text-xs font-black uppercase tracking-[0.2em] border border-gray-100 hover:bg-gray-50 transition-all duration-300 shadow-sm flex items-center justify-center gap-3 hover:-translate-y-1 active:translate-y-0 relative"
                 >
                   <Users size={16} className="text-gray-400" />
-                  <span>Accept a Proposal</span>
+                  <span>Accept a Proposal</span>  
                   {hasIncomingProposals && (
-                    <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] font-black rounded-full h-6 w-6 flex items-center justify-center shadow-lg shadow-rose-200">
+                    <span className="absolute -top-2 -right-2 bg-black-500 text-white text-[10px] font-black rounded-full h-6 w-6 flex items-center justify-center shadow-lg shadow-black-200">
                       {incomingProposals.length}
                     </span>
                   )}
@@ -384,11 +477,13 @@ export default function HomePage() {
             )}
           </div>
         ) : (
-          <div className="w-full max-w-lg mx-auto space-y-4">
+          <div className={`w-full max-w-lg mx-auto space-y-4 ${showCelebration ? "" : "animate-in fade-in zoom-in duration-700"}`}>
             {dashboard && isConnected && (
               <MarriageDashboard
                 dashboard={dashboard}
                 onRefresh={refetch}
+                onDissolved={handleDissolved}
+                onDissolutionFailed={handleDissolutionFailed}
                 marriageView={marriageView}
                 dissolutionRequest={dissolutionRequest}
                 isMarriageLoading={isMarriageLoading}

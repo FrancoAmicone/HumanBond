@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useWalletAuth } from '@/lib/worldcoin/useWalletAuth';
 import { CONTRACT_ADDRESSES, BOND_NFT_ABI } from '@/lib/contracts';
-import { readContract, getPublicClient } from '@wagmi/core';
+import { readContract } from '@wagmi/core';
 import { wagmiConfig } from '@/lib/wagmi/config';
-import { parseAbiItem } from 'viem';
 import { parseTokenMetadata, type TokenMetadata } from '@/lib/utils/parseTokenMetadata';
 import { USE_MOCKS } from '@/lib/config';
 import { getMockVowNFTs } from '@/lib/mocks';
@@ -38,25 +37,44 @@ async function fetchSingleBondNFT(tokenId: bigint): Promise<VowNFTData | null> {
 }
 
 async function fetchAllBondNFTs(address: `0x${string}`): Promise<VowNFTData[]> {
-    const publicClient = getPublicClient(wagmiConfig);
+    const bondNftAddress = CONTRACT_ADDRESSES.BOND_NFT as `0x${string}`;
 
-    const logs = await publicClient.getLogs({
-        address: CONTRACT_ADDRESSES.BOND_NFT as `0x${string}`,
-        event: parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'),
-        args: {
-            to: address,
-            from: '0x0000000000000000000000000000000000000000',
-        },
-        fromBlock: 'earliest',
-    });
+    // Enumerate via contract reads instead of scanning Transfer logs from
+    // genesis: the public RPC caps eth_getLogs at a 100-block range, so a
+    // `fromBlock: 'earliest'` scan fails outright. These NFTs are never burned,
+    // so token ids run contiguously up to totalSupply — we read the supply and
+    // keep the ones this wallet currently owns (including past bonds).
+    const total = await readContract(wagmiConfig, {
+        address: bondNftAddress,
+        abi: BOND_NFT_ABI,
+        functionName: 'totalSupply',
+    }) as bigint;
 
-    if (logs.length === 0) return [];
+    if (total === BigInt(0)) return [];
 
-    const tokenIds = logs
-        .map(log => log.args.tokenId)
-        .filter((id): id is bigint => id !== undefined);
+    // Scan [0, total] inclusive to cover both 0- and 1-based token ids;
+    // ownerOf reverts for a non-existent id, which we treat as "not owned".
+    const candidateIds = Array.from({ length: Number(total) + 1 }, (_, i) => BigInt(i));
+    const ownerChecks = await Promise.all(
+        candidateIds.map(async (tokenId) => {
+            try {
+                const owner = await readContract(wagmiConfig, {
+                    address: bondNftAddress,
+                    abi: BOND_NFT_ABI,
+                    functionName: 'ownerOf',
+                    args: [tokenId],
+                }) as `0x${string}`;
+                return owner.toLowerCase() === address.toLowerCase() ? tokenId : null;
+            } catch {
+                return null;
+            }
+        }),
+    );
 
-    const results = await Promise.all(tokenIds.map(fetchSingleBondNFT));
+    const ownedIds = ownerChecks.filter((id): id is bigint => id !== null);
+    if (ownedIds.length === 0) return [];
+
+    const results = await Promise.all(ownedIds.map(fetchSingleBondNFT));
     const tokensData = results.filter((r): r is VowNFTData => r !== null);
     tokensData.sort((a, b) => Number(b.tokenId) - Number(a.tokenId));
     return tokensData;

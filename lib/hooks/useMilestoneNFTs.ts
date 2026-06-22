@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useWalletAuth } from '@/lib/worldcoin/useWalletAuth';
 import { CONTRACT_ADDRESSES, MILESTONE_NFT_ABI } from '@/lib/contracts';
-import { readContract, getPublicClient } from '@wagmi/core';
+import { readContract } from '@wagmi/core';
 import { wagmiConfig } from '@/lib/wagmi/config';
-import { parseAbiItem } from 'viem';
 import { parseTokenMetadata, type TokenMetadata } from '@/lib/utils/parseTokenMetadata';
 import { USE_MOCKS } from '@/lib/config';
 import { getMockMilestones } from '@/lib/mocks';
@@ -44,25 +43,42 @@ async function fetchSingleMilestone(tokenId: bigint): Promise<MilestoneNFTData> 
 }
 
 async function fetchAllMilestones(address: `0x${string}`): Promise<MilestoneNFTData[]> {
-    const publicClient = getPublicClient(wagmiConfig);
+    const milestoneAddress = CONTRACT_ADDRESSES.MILESTONE_NFT as `0x${string}`;
 
-    const logs = await publicClient.getLogs({
-        address: CONTRACT_ADDRESSES.MILESTONE_NFT as `0x${string}`,
-        event: parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'),
-        args: {
-            to: address,
-            from: '0x0000000000000000000000000000000000000000',
-        },
-        fromBlock: 'earliest',
-    });
+    // See useVowNFT: enumerate via contract reads instead of a genesis-wide
+    // eth_getLogs scan (capped at 100 blocks on the public RPC). No burns here,
+    // so ids are contiguous up to totalSupply.
+    const total = await readContract(wagmiConfig, {
+        address: milestoneAddress,
+        abi: MILESTONE_NFT_ABI,
+        functionName: 'totalSupply',
+    }) as bigint;
 
-    if (logs.length === 0) return [];
+    if (total === BigInt(0)) return [];
 
-    const tokenIds = logs
-        .map(log => log.args.tokenId)
-        .filter((id): id is bigint => id !== undefined);
+    // Scan [0, total] inclusive to cover both 0- and 1-based token ids;
+    // ownerOf reverts for a non-existent id, which we treat as "not owned".
+    const candidateIds = Array.from({ length: Number(total) + 1 }, (_, i) => BigInt(i));
+    const ownerChecks = await Promise.all(
+        candidateIds.map(async (tokenId) => {
+            try {
+                const owner = await readContract(wagmiConfig, {
+                    address: milestoneAddress,
+                    abi: MILESTONE_NFT_ABI,
+                    functionName: 'ownerOf',
+                    args: [tokenId],
+                }) as `0x${string}`;
+                return owner.toLowerCase() === address.toLowerCase() ? tokenId : null;
+            } catch {
+                return null;
+            }
+        }),
+    );
 
-    const milestones = await Promise.all(tokenIds.map(fetchSingleMilestone));
+    const ownedIds = ownerChecks.filter((id): id is bigint => id !== null);
+    if (ownedIds.length === 0) return [];
+
+    const milestones = await Promise.all(ownedIds.map(fetchSingleMilestone));
     milestones.sort((a, b) => Number(b.year - a.year));
     return milestones;
 }

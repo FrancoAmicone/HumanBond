@@ -82,7 +82,7 @@ export default function HomePage() {
   const handleCelebrationComplete = useCallback(() => {
     consumeBondCelebrationFlag();
     setShowCelebration(false);
-  }, []);
+  }, []); 
 
   const handleDissolutionComplete = useCallback(() => {
     setDissolutionOverlay(null);
